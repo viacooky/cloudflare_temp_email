@@ -31,7 +31,7 @@
 
 ## [查看部署文档](https://temp-mail-docs.awsl.uk)
 
-[![Deploy to Cloudflare Workers](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/dreamhunter2333/cloudflare_temp_email)
+[![Deploy to Cloudflare Workers](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/viacooky/cloudflare_temp_email)
 
 [Github Action 部署文档](https://temp-mail-docs.awsl.uk/zh/guide/github-action.html)
 
