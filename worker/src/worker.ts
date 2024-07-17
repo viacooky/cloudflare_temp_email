@@ -1,10 +1,7 @@
-import { Hono } from 'hono'
+import { Context, Hono } from 'hono'
 import { cors } from 'hono/cors';
 import { jwt } from 'hono/jwt'
 import { Jwt } from 'hono/utils/jwt'
-
-// @ts-ignore
-import { api as apiV1 } from './deprecated';
 
 import { api as commonApi } from './commom_api';
 import { api as mailsApi } from './mails_api'
@@ -16,11 +13,16 @@ import { api as telegramApi } from './telegram_api'
 import { email } from './email';
 import { scheduled } from './scheduled';
 import { getAdminPasswords, getPasswords, getBooleanValue } from './utils';
-import { HonoCustomType } from './types';
+import { HonoCustomType, UserPayload } from './types';
 
 const app = new Hono<HonoCustomType>()
 //cors
 app.use('/*', cors());
+// error handler
+app.onError((err, c) => {
+	console.error(err)
+	return c.text(`${err.name} ${err.message}`, 500)
+})
 // rate limit
 app.use('/*', async (c, next) => {
 	if (
@@ -53,6 +55,26 @@ app.use('/*', async (c, next) => {
 	}
 	await next()
 });
+
+const checkUserPayload = async (
+	c: Context<HonoCustomType>
+): Promise<void> => {
+	try {
+		const token = c.req.raw.headers.get("x-user-token");
+		if (!token) return;
+		const payload = await Jwt.verify(token, c.env.JWT_SECRET, "HS256");
+		// check expired
+		if (!payload.exp) return;
+		// exp is in seconds
+		if (payload.exp < Math.floor(Date.now() / 1000)) {
+			return;
+		}
+		c.set("userPayload", payload as UserPayload);
+	} catch (e) {
+		console.error(e);
+	}
+}
+
 // api auth
 app.use('/api/*', async (c, next) => {
 	// check header x-custom-auth
@@ -64,6 +86,7 @@ app.use('/api/*', async (c, next) => {
 		}
 	}
 	if (c.req.path.startsWith("/api/new_address")) {
+		await checkUserPayload(c);
 		await next();
 		return;
 	}
@@ -90,7 +113,7 @@ app.use('/user_api/*', async (c, next) => {
 		if (payload.exp < Math.floor(Date.now() / 1000)) {
 			return c.text("Token Expired", 401)
 		}
-		c.set("userPayload", payload);
+		c.set("userPayload", payload as UserPayload);
 	} catch (e) {
 		console.error(e);
 		return c.text("Need User Token", 401)
@@ -121,7 +144,6 @@ app.route('/', commonApi)
 app.route('/', mailsApi)
 app.route('/', userApi)
 app.route('/', adminApi)
-app.route('/', apiV1)
 app.route('/', apiSendMail)
 app.route('/', telegramApi)
 

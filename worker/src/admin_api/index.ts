@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import { Jwt } from 'hono/utils/jwt'
 
 import { HonoCustomType } from '../types'
-import { sendAdminInternalMail, getJsonSetting, saveSetting } from '../utils'
+import { sendAdminInternalMail, getJsonSetting, saveSetting, getUserRoles } from '../utils'
 import { newAddress, handleListQuery } from '../common'
 import { CONSTANTS } from '../constants'
 import cleanup_api from './cleanup_api'
@@ -40,7 +40,7 @@ api.post('/admin/new_address', async (c) => {
         return c.text("Please provide a name", 400)
     }
     try {
-        const res = await newAddress(c, name, domain, enablePrefix, false);
+        const res = await newAddress(c, name, domain, enablePrefix, false, null, false);
         return c.json(res);
     } catch (e) {
         return c.text(`Failed create address: ${(e as Error).message}`, 400)
@@ -219,16 +219,24 @@ api.get('/admin/statistics', async (c) => {
     const { count: addressCount } = await c.env.DB.prepare(
         `SELECT count(*) as count FROM address`
     ).first<{ count: number }>() || {};
-    const { count: activeUserCount7days } = await c.env.DB.prepare(
+    const { count: activeAddressCount7days } = await c.env.DB.prepare(
         `SELECT count(*) as count FROM address where updated_at > datetime('now', '-7 day')`
+    ).first<{ count: number }>() || {};
+    const { count: activeAddressCount30days } = await c.env.DB.prepare(
+        `SELECT count(*) as count FROM address where updated_at > datetime('now', '-30 day')`
     ).first<{ count: number }>() || {};
     const { count: sendMailCount } = await c.env.DB.prepare(
         `SELECT count(*) as count FROM sendbox`
     ).first<{ count: number }>() || {};
+    const { count: userCount } = await c.env.DB.prepare(
+        `SELECT count(*) as count FROM users`
+    ).first<{ count: number }>() || {};
     return c.json({
         mailCount: mailCount,
-        userCount: addressCount,
-        activeUserCount7days: activeUserCount7days,
+        addressCount: addressCount,
+        activeAddressCount7days: activeAddressCount7days,
+        activeAddressCount30days: activeAddressCount30days,
+        userCount: userCount,
         sendMailCount: sendMailCount
     })
 });
@@ -284,5 +292,7 @@ api.get('/admin/users', admin_user_api.getUsers)
 api.delete('/admin/users/:user_id', admin_user_api.deleteUser)
 api.post('/admin/users', admin_user_api.createUser)
 api.post('/admin/users/:user_id/reset_password', admin_user_api.resetPassword)
+api.get('/admin/user_roles', async (c) => c.json(getUserRoles(c)))
+api.post('/admin/user_roles', admin_user_api.updateUserRoles)
 api.get("/admin/webhook/settings", webhook_settings.getWebhookSettings);
 api.post("/admin/webhook/settings", webhook_settings.saveWebhookSettings);
